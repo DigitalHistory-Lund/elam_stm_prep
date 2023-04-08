@@ -13,6 +13,7 @@ import re
 import logging
 from rpy2.robjects import r
 from rpy2.rinterface import embedded
+import hashlib
 
 # from lamonpy import Lamon
 # lamon = Lamon()
@@ -29,7 +30,11 @@ class Settings:
         pass
 
     def __hash__(self):
-        return hash((self._settings))
+        try:
+            return int(hashlib.md5(self.settings_str.encode("utf-8")).hexdigest(), 16)
+        except AttributeError:
+            self._load_settings()
+            return hash(self)
 
     def __str__(self):
         return self.name + "_" + str(hex(hash(self)))
@@ -54,16 +59,21 @@ class Settings:
             except AttributeError:
                 pass
         self._settings = tuple(settings)
+        self.settings_str = "\n".join(str(setting) for setting in self._settings)
 
     def _record_settings(self):
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
+            settings_path = os.path.join(self.data_dir, "setting.txt")
 
-            with open(
-                os.path.join(self.data_dir, "setting.txt"), "x", encoding="utf8"
-            ) as settings_writer:
-                for setting in self._settings:
-                    settings_writer.write(str(setting) + "\n")
+            with open(settings_path, "x", encoding="utf8") as settings_writer:
+                settings_writer.write(self.settings_str)
+        else:
+            with open(settings_path, "r", encoding="utf8") as settings_reader:
+                settings_str = settings_reader.read()
+
+            if self.settings_str != settings_str:
+                raise ValueError("Read and calculated settings differ")
 
     def update_settings(self):
         self._load_settings()
@@ -160,8 +170,6 @@ class Corpus(Settings):
         self.gui[2, 0] = self.widgets["chars"]
         self.gui[3, 0] = self.widgets["btn"]
 
-        self._load_settings()
-
         self.get_options_from_db()
 
         for package in ("stm", "igraph", "tm"):
@@ -175,7 +183,8 @@ class Corpus(Settings):
             )
         r("library(stm)")
 
-        self.update_settings()
+        if not self.update_settings():
+            self._export_corpus()
         self.load_r_data()
         self.stm = STM(self)
 
