@@ -93,6 +93,7 @@ class Settings:
 
     def button_wrapper(self, func):
         def inner(button):
+            self.update_settings()
             self.deactivate_buttons()
             try:
                 func(button)
@@ -104,6 +105,8 @@ class Settings:
             self.activate_buttons()
             button.icon = "check"
             button.button_style = "success"
+
+            self.update_settings()
 
         return inner
 
@@ -185,8 +188,8 @@ class Corpus(Settings):
             )
         r("library(stm)")
 
-        if not self.update_settings():
-            self._export_corpus()
+        self.update_settings()
+
         self.load_r_data()
         self.stm = STM(self)
 
@@ -212,44 +215,48 @@ class Corpus(Settings):
     def button_func(self):
         @self.button_wrapper
         def start_update(button):
-            if not self.update_settings():
-                return None
-
             self.load_r_data()
 
         return start_update
 
     def load_r_data(self):
-        r(f"data <- read.csv('{self.corpus_file_path}')")
-        r(
-            """
-            processed <- textProcessor(
-                data$d,
-                metadata=data,
-                removestopwords=FALSE,
-                removepunctuation=FALSE,
-                stem=FALSE,
-                )
-            """
-        )
-        r(
-            """
-            out <- prepDocuments(
-                processed$documents,
-                processed$vocab,
-                processed$meta,
-                lower.thresh=1
-                )
-            """
-        )
-        r(
-            """
-            docs <- data$documents
-            vocab <- out$vocab
-            meta <- out$meta
+        r_data_path = os.path.join(self.data_dir, "corpus.RData")
 
-            """
-        )
+        if not os.path.exists(r_data_path):
+            r(f"data <- read.csv('{self.corpus_file_path}')")
+            r(
+                """
+                processed <- textProcessor(
+                    data$d,
+                    metadata=data,
+                    removestopwords=FALSE,
+                    removepunctuation=FALSE,
+                    stem=FALSE,
+                    )
+                """
+            )
+            r(
+                """
+                out <- prepDocuments(
+                    processed$documents,
+                    processed$vocab,
+                    processed$meta,
+                    lower.thresh=1
+                    )
+                """
+            )
+            r(
+                """
+                docs <- data$documents
+                vocab <- out$vocab
+                meta <- out$meta
+
+                """
+            )
+            r(f'save(data, processed, out, docs, vocab, meta, file="{r_data_path}")')
+        else:
+            print("Corpus data found, loading.")
+            r(f'load("{r_data_path}")')
 
     def _load_settings(self):
         self.sw = set(_ for _ in self.widgets["sw"].value.split("\n"))
@@ -303,13 +310,20 @@ class Corpus(Settings):
             text = [_ for _ in text if _ not in sw and "[" not in _]
         return " ".join(text)
 
+    def update_settings(self):
+        super().update_settings()
+        self._export_corpus()
+        if hasattr(self, "stm"):
+            self.stm.update_settings()
+            self.stm.plotter.update_settings()
+
 
 class STM(Settings):
     def __init__(self, corpus):
         self.corpus = corpus
         self.name = "stm"
-        self._root_dir = self.corpus.data_dir
         self.corpus = corpus
+        self._root_dir = self.corpus.data_dir
 
         self.widgets = {
             "k": IntText(
@@ -347,9 +361,13 @@ class STM(Settings):
         self.buttons.append(self.widgets["btn"])
 
     def update_settings(self):
+        self._root_dir = self.corpus.data_dir
         super().update_settings()
 
         if hasattr(self, "plotter"):
+            for checkbox in self.plotter.widgets["topics"]:
+                del checkbox
+
             self.plotter.widgets["topics"] = [
                 Checkbox(value=False, description=f"Topic {k+1}")
                 for k in range(self.widgets["k"].value)
@@ -408,8 +426,8 @@ class STM(Settings):
 class Plotter(Settings):
     def __init__(self, stm):
         self.name = "plot"
-        self._root_dir = stm.data_dir
         self.stm = stm
+        self._root_dir = self.stm.data_dir
 
         self.widgets = {
             "type": RadioButtons(
@@ -425,7 +443,8 @@ class Plotter(Settings):
                 value=False,
                 icon="ellipsis",
             ),
-            "topic_list": VBox()
+            "topic_list": VBox(),
+            "topics": [Checkbox()]
             # todo: add optional arguments
         }
         self.gui = GridspecLayout(5, 5)
@@ -439,6 +458,10 @@ class Plotter(Settings):
         self.update_settings()
 
         self.buttons.append(self.widgets["btn"])
+
+    def update_settings(self):
+        self._root_dir = self.stm.data_dir
+        super().update_settings()
 
     def button_func(self):
         @self.button_wrapper
