@@ -18,7 +18,7 @@ import hashlib
 # from lamonpy import Lamon
 # lamon = Lamon()
 
-word_pattern = re.compile("[a-z]+")
+word_pattern = re.compile("[a-z]+", re.IGNORECASE)
 
 
 class Settings:
@@ -64,8 +64,9 @@ class Settings:
     def _record_settings(self):
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
-            settings_path = os.path.join(self.data_dir, "setting.txt")
+        settings_path = os.path.join(self.data_dir, "setting.txt")
 
+        if not os.path.exists(settings_path):
             with open(settings_path, "x", encoding="utf8") as settings_writer:
                 settings_writer.write(self.settings_str)
         else:
@@ -84,6 +85,7 @@ class Settings:
             return False
         else:
             logging.debug("Has has changed, recording settings etc.")
+            os.makedirs(self.data_dir, exist_ok=True)
             self._record_settings()
 
             self._use_updated_settings()
@@ -369,25 +371,33 @@ class STM(Settings):
             return ""
 
     def button_func(self):
-        self.update_settings()
-
         @self.button_wrapper
         def fit_stm(button):
-            prevalence = self.build_prevanence_formula()
+            self.update_settings()
 
-            r(
-                f"""
-                stm_fit <- stm(
-                documents = out$documents,
-                vocab = out$vocab,
-                K={self.widgets['k'].value},
-                max.em.its = {self.widgets['i'].value},
-                data = meta,
-                init.type = "Spectral"
-                {prevalence}
+            self.stm_path = os.path.join(self.data_dir, "stm.RData")
+            if os.path.exists(self.stm_path):
+                print("STM model found, loading")
+                r(f'load("{self.stm_path}")')
+
+            else:
+                prevalence = self.build_prevanence_formula()
+
+                r(
+                    f"""
+                    stm_fit <- stm(
+                    documents = out$documents,
+                    vocab = out$vocab,
+                    K={self.widgets['k'].value},
+                    max.em.its = {self.widgets['i'].value},
+                    data = meta,
+                    init.type = "Spectral"
+                    {prevalence}
+                    )
+                    """
                 )
-                """
-            )
+
+                r(f'save(stm_fit, file="{self.stm_path}")')
 
             button.icon = "check"
             button.button_style = "success"
@@ -403,8 +413,8 @@ class Plotter(Settings):
 
         self.widgets = {
             "type": RadioButtons(
-                value="hist",
-                options=["hist", "perspectives", "labels"],
+                value="default",
+                options=["default", "hist", "perspectives", "labels", "topicCorr"],
                 descripton="Plot type",
             ),
             "display": Image(),
@@ -438,6 +448,14 @@ class Plotter(Settings):
         return button_plotter
 
     def plot_stm(self, plot_type):
+        if plot_type == "topicCorr":
+            self.topiccorr()
+        elif plot_type == "default":
+            self.plain_plot()
+        else:
+            self.basic_plot(plot_type)
+
+    def basic_plot(self, plot_type):
         try:
             r("stm_fit")
         except embedded.RRunntimeError:
@@ -465,5 +483,30 @@ class Plotter(Settings):
                 plot(stm_fit, type="{plot_type}", topics = c({topics}))
                 dev.off()
                 """
+            )
+        self.widgets["display"].value = open(plot_path, "rb").read()
+
+    def topiccorr(self):
+        plot_path = os.path.join(self.data_dir, "topicCorr.jpg")
+        if not os.path.exists(plot_path):
+            r(
+                f"""
+        cormat <- topicCorr(stm_fit)
+        jpeg("{plot_path}", width=3.25, height=3.25, res=1200, units="in")
+        plot(cormat)
+        dev.off()
+        """
+            )
+        self.widgets["display"].value = open(plot_path, "rb").read()
+
+    def plain_plot(self):
+        plot_path = os.path.join(self.data_dir, "default.jpg")
+        if not os.path.exists(plot_path):
+            r(
+                f"""
+        jpeg("{plot_path}")
+        plot(stm_fit)
+        dev.off()
+        """
             )
         self.widgets["display"].value = open(plot_path, "rb").read()
