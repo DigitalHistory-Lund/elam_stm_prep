@@ -6,24 +6,33 @@ from ipywidgets import RadioButtons
 from ipywidgets import Checkbox
 from ipywidgets import IntText
 from ipywidgets import GridspecLayout
+from ipywidgets import Image
+from ipywidgets import VBox
 import csv
-from lamonpy import Lamon
 import re
+import logging
 from rpy2.robjects import r
+from rpy2.rinterface import embedded
 
-lamon = Lamon()
+# from lamonpy import Lamon
+# lamon = Lamon()
+
 word_pattern = re.compile("[a-z]+")
 
 
 class Settings:
     _root_dir = None
     _widgets = []
+    buttons = []
 
-    def __str__(self):
-        return self.name + "_" + str(hex(self))
+    def _use_updated_settings(self):
+        pass
 
     def __hash__(self):
         return hash((self._settings))
+
+    def __str__(self):
+        return self.name + "_" + str(hex(hash(self)))
 
     def get_group_field(self):
         group = self.widgets["grp"].value
@@ -39,6 +48,8 @@ class Settings:
         settings = []
         for key, widget in self.widgets.items():
             try:
+                if key == "display":
+                    continue
                 settings.append((key, widget.value))
             except AttributeError:
                 pass
@@ -59,10 +70,42 @@ class Settings:
 
         self.data_dir = os.path.join(self._root_dir, str(self))
 
-        if not os.path.exists(self.data_dir):
+        if os.path.exists(self.data_dir):
+            return False
+        else:
+            logging.debug("Has has changed, recording settings etc.")
             self._record_settings()
 
             self._use_updated_settings()
+            return True
+
+    def button_wrapper(self, func):
+        def inner(button):
+            self.deactivate_buttons()
+            try:
+                func(button)
+            except Exception as e:
+                print(e)
+                button.icon = "X"
+                button.button_style = "danger"
+
+            self.activate_buttons()
+            button.icon = "check"
+            button.button_style = "success"
+
+        return inner
+
+    def deactivate_buttons(self):
+        for button in self.buttons:
+            button.icon = "hourglass"
+            button.button_style = "warning"
+            button.disable = True
+
+    def activate_buttons(self):
+        for button in self.buttons:
+            button.icon = "ellipsis"
+            button.button_style = ""
+            button.disable = False
 
 
 class Corpus(Settings):
@@ -87,6 +130,7 @@ class Corpus(Settings):
 
         self._use_updated_settings = self._export_corpus
 
+        # todo: add download for stopwords.
         with open("stopwords_latin.txt", "r", encoding="utf8") as f:
             self.sw = set(row for row in f if not row.startswith("#") and row != "")
 
@@ -94,27 +138,27 @@ class Corpus(Settings):
             "grp": RadioButtons(
                 options=["Paragraph", "Title", "Author"],
                 description="Grouping",
-                value="Paragraph",
+                value="Author",
             ),
             "lem": Checkbox(value=True, description="Lemmatize"),
             "chars": IntText(value=1, description="Minimum token length"),
-            "save": Button(
+            "btn": Button(
                 description="Save settings",
-                icon="check",
+                icon="ellipsis",
                 tooltip="Save settings and generate new corpus.",
                 disables=False,
                 value=False,
             ),
             "sw": Textarea(value="\n".join(self.sw), description="StopWords", rows=20),
         }
-        self.widgets["save"].on_click(self.button_func())
+        self.widgets["btn"].on_click(self.button_func())
 
         self.gui = GridspecLayout(4, 4)
         self.gui[:, 1] = self.widgets["sw"]
         self.gui[0, 0] = self.widgets["grp"]
         self.gui[1, 0] = self.widgets["lem"]
         self.gui[2, 0] = self.widgets["chars"]
-        self.gui[3, 0] = self.widgets["save"]
+        self.gui[3, 0] = self.widgets["btn"]
 
         self._load_settings()
 
@@ -122,6 +166,12 @@ class Corpus(Settings):
 
         # todo: add stm installation
         r("library(stm)")
+
+        self.update_settings()
+        self.load_r_data()
+        self.stm = STM(self)
+
+        self.buttons.append(self.widgets["btn"])
 
     def get_options_from_db(self):
         with sqlite3.connect(self.db, uri=True) as db:
@@ -141,41 +191,46 @@ class Corpus(Settings):
             ]
 
     def button_func(self):
-        def start_update(*args):
-            self.update_settings()
+        @self.button_wrapper
+        def start_update(button):
+            if not self.update_settings():
+                return None
 
-            r(f"data <- read.csv('{self.corpus_file_path}')")
-            r(
-                """
-                processed <- textProcessor(
-                    data$d,
-                    metadata=data,
-                    removestopwords=FALSE,
-                    removepunctuation=FALSE,
-                    stem=FALSE,
-                    )
-                """
-            )
-            r(
-                """
-                out <- prepDocuments(
-                    processed$documents,
-                    processed$vocab,
-                    processed$meta,
-                    lower.thresh=1
-                    )
-                """
-            )
-            r(
-                """
-                docs <- data$documents
-                vocab <- out$vocab
-                meta <- out$meta
-
-                """
-            )
+            self.load_r_data()
 
         return start_update
+
+    def load_r_data(self):
+        r(f"data <- read.csv('{self.corpus_file_path}')")
+        r(
+            """
+            processed <- textProcessor(
+                data$d,
+                metadata=data,
+                removestopwords=FALSE,
+                removepunctuation=FALSE,
+                stem=FALSE,
+                )
+            """
+        )
+        r(
+            """
+            out <- prepDocuments(
+                processed$documents,
+                processed$vocab,
+                processed$meta,
+                lower.thresh=1
+                )
+            """
+        )
+        r(
+            """
+            docs <- data$documents
+            vocab <- out$vocab
+            meta <- out$meta
+
+            """
+        )
 
     def _load_settings(self):
         self.sw = set(_ for _ in self.widgets["sw"].value.split("\n"))
@@ -204,13 +259,16 @@ class Corpus(Settings):
 
                 writer.writeheader()
                 for line in results:
+                    line["document"] = self.cleaner(line["document"], self.sw)
                     # preprocess each line, and skip empty lines
                     writer.writerow(line)
 
     def construct_query(self):
         # todo: construct query from settings
 
-        query = 'select group_concat(document, " ") as document, '
+        text_col = "par_lem" if self._settings[1][1] else "par_raw"
+
+        query = f'select group_concat({text_col}, " ") as document, '
         for col, pairings in [("author", self.authors), ("title", self.works)]:
             for value, header in pairings:
                 query += f'CASE WHEN {col} == "{value}" THEN 1 ELSE 0 END AS {header}, '
@@ -220,27 +278,36 @@ class Corpus(Settings):
         return query
 
     @staticmethod
-    def lemmatize(text, sw):
-        lemmas = [tag[2] for tag in lamon.tag(text)[0][1]]
-        lemmas = [_ for _ in lemmas if _ not in sw and "[" not in _]
-        return " ".join(lemmas)
+    def cleaner(text, sw):
+        text = word_pattern.findall(text)
+        if sw is not None:
+            text = [_ for _ in text if _ not in sw and "[" not in _]
+        return " ".join(text)
 
 
 class STM(Settings):
     def __init__(self, corpus):
         self.corpus = corpus
         self.name = "stm"
+        self._root_dir = self.corpus.data_dir
+        self.corpus = corpus
 
         self.widgets = {
-            "k": IntText(value=7, description="Number of topics"),
-            "i": IntText(value=5, description="Maximum number of iterations"),
+            "k": IntText(
+                value=3, description="Number of topics", tooltip="Number of topics"
+            ),
+            "i": IntText(
+                value=1,
+                description="Maximum number of iterations",
+                tooltip="Maximum number of iterations",
+            ),
             "auth": Checkbox(value=True, description="By author"),
             "work": Checkbox(value=True, description="By work"),
             "btn": Button(
                 description="Fit stm",
-                icon="check",
+                icon="ellipsis",
                 tooltip="Save settings and generate new corpus.",
-                disables=False,
+                disable=False,
                 value=False,
             ),
         }
@@ -252,6 +319,24 @@ class STM(Settings):
         self.gui[0, 1] = self.widgets["auth"]
         self.gui[1, 1] = self.widgets["work"]
         self.gui[2, :] = self.widgets["btn"]
+
+        self.update_settings()
+        self.plotter = Plotter(self)
+
+        self.update_settings()
+
+        self.buttons.append(self.widgets["btn"])
+
+    def update_settings(self):
+        super().update_settings()
+
+        if hasattr(self, "plotter"):
+            self.plotter.widgets["topics"] = [
+                Checkbox(value=True, description=f"Topic {k+1}")
+                for k in range(self.widgets["k"].value)
+            ]
+            self.plotter.widgets["topic_list"].items = self.plotter.widgets["topics"]
+            self.plotter.gui[:, -1] = VBox(self.plotter.widgets["topics"])
 
     def build_prevanence_formula(self):
         variables = []
@@ -269,7 +354,10 @@ class STM(Settings):
     def button_func(self):
         self.update_settings()
 
-        def fit_stm(*args):
+        @self.button_wrapper
+        def fit_stm(button):
+            self.corpus.deactivate_buttons()
+
             prevalence = self.build_prevanence_formula()
 
             r(
@@ -286,20 +374,82 @@ class STM(Settings):
                 """
             )
 
+            self.corpus.activate_buttons()
+            button.icon = "check"
+            button.button_style = "success"
+
         return fit_stm
 
-    def plot_stm(self, plot_type, **kwargs):
+
+class Plotter(Settings):
+    def __init__(self, stm):
+        self.name = "plot"
+        self._root_dir = stm.data_dir
+        self.stm = stm
+
+        self.widgets = {
+            "type": RadioButtons(
+                value="hist",
+                options=["hist", "perspectives", "labels"],
+                descripton="Plot type",
+            ),
+            "display": Image(),
+            "btn": Button(
+                description="Visualize",
+                tooltip="Make and show plot",
+                disable=False,
+                value=False,
+                icon="ellipsis",
+            ),
+            "topic_list": VBox()
+            # todo: add optional arguments
+        }
+        self.gui = GridspecLayout(5, 5)
+        self.gui[0, 0] = self.widgets["type"]
+        self.gui[0, -2] = self.widgets["btn"]
+        self.gui[:, -1] = self.widgets["topic_list"]
+        self.gui[1:, 1:-1] = self.widgets["display"]
+
+        self.widgets["btn"].on_click(self.button_func())
+
+        self.update_settings()
+
+        self.buttons.append(self.widgets["btn"])
+
+    def button_func(self):
+        @self.button_wrapper
+        def button_plotter(button):
+            self.plot_stm(plot_type=self.widgets["type"].value)
+
+        return button_plotter
+
+    def plot_stm(self, plot_type):
+        try:
+            r("stm_fit")
+        except embedded.RRunntimeError:
+            print("missing stm model")
+            return None
+
+        first = 2 if plot_type == "perspectives" else self.stm._settings[0][1]
+
+        topics = ", ".join(
+            [
+                cbox.description.split(" ")[-1]
+                for cbox in self.widgets["topics"]
+                if cbox.value
+            ][:first]
+        )
         plot_path = os.path.join(
-            self.data_dir, (str(plot_type) + str(kwargs) + ".pnt").replace(" ", "_")
+            self.data_dir,
+            (str(self) + str(plot_type) + str(topics) + ".jpeg").replace(" ", "_"),
         )
 
         if not os.path.exists(plot_path):
             r(
                 f"""
-                dev.off()
-                jpeg(file={plot_path})
-                plot(stm_fit, type="{plot_type}")
+                jpeg(file="{plot_path}")
+                plot(stm_fit, type="{plot_type}", topics = c({topics}))
                 dev.off()
                 """
             )
-        return plot_path
+        self.widgets["display"].value = open(plot_path, "rb").read()
