@@ -164,7 +164,15 @@ class Corpus(Settings):
 
         self.get_options_from_db()
 
-        # todo: add stm installation
+        for package in ("stm", "igraph", "tm"):
+            r(
+                "if('"
+                + package
+                + f"' %in% rownames(installed.packages()) == FALSE) "
+                + "{install.packages('"
+                + package
+                + "')}"
+            )
         r("library(stm)")
 
         self.update_settings()
@@ -332,7 +340,7 @@ class STM(Settings):
 
         if hasattr(self, "plotter"):
             self.plotter.widgets["topics"] = [
-                Checkbox(value=True, description=f"Topic {k+1}")
+                Checkbox(value=False, description=f"Topic {k+1}")
                 for k in range(self.widgets["k"].value)
             ]
             self.plotter.widgets["topic_list"].items = self.plotter.widgets["topics"]
@@ -356,8 +364,6 @@ class STM(Settings):
 
         @self.button_wrapper
         def fit_stm(button):
-            self.corpus.deactivate_buttons()
-
             prevalence = self.build_prevanence_formula()
 
             r(
@@ -374,7 +380,6 @@ class STM(Settings):
                 """
             )
 
-            self.corpus.activate_buttons()
             button.icon = "check"
             button.button_style = "success"
 
