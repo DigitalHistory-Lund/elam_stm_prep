@@ -478,6 +478,15 @@ class Plotter(Settings):
         else:
             self.basic_plot(plot_type)
 
+    def selected_topics_as_str(self):
+        return ", ".join(
+            [
+                cbox.description.split(" ")[-1]
+                for cbox in self.widgets["topics"]
+                if cbox.value
+            ][:first]
+        )
+
     def basic_plot(self, plot_type):
         try:
             r("stm_fit")
@@ -487,13 +496,7 @@ class Plotter(Settings):
 
         first = 2 if plot_type == "perspectives" else self.stm._settings[0][1]
 
-        topics = ", ".join(
-            [
-                cbox.description.split(" ")[-1]
-                for cbox in self.widgets["topics"]
-                if cbox.value
-            ][:first]
-        )
+        topics = self.selected_topics_as_str()
         plot_path = os.path.join(
             self.data_dir,
             (str(self) + str(plot_type) + str(topics) + ".jpeg").replace(" ", "_"),
@@ -523,12 +526,14 @@ class Plotter(Settings):
         self.widgets["display"].value = open(plot_path, "rb").read()
 
     def plain_plot(self):
+        topics = self.selected_topics_as_str()
+
         plot_path = os.path.join(self.data_dir, "default.jpg")
         if not os.path.exists(plot_path):
             r(
                 f"""
         jpeg("{plot_path}")
-        plot(stm_fit)
+        plot(stm_fit, topics = c({topics}))
         dev.off()
         """
             )
