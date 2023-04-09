@@ -10,7 +10,7 @@ However, the interface could be readapted for other copora with little effort.
 
 This repository was written with the intention of making Structural Topic
 Modelling more accessible to the researchers of the
-__Authoroty, community, and individual freedom - Latin monastic culture and
+__Authority, community, and individual freedom - Latin monastic culture and
 the roots of European educational ideals
 ([__ELAM__](https://projekt.ht.lu.se/monasticism)
 project located at [Lund University](https://portal.research.lu.se/sv/projects/authority-community-and-individual-freedom-latin-monastic-culture)).
@@ -43,15 +43,15 @@ The idea behind this is to allow for simple exploration of the data, try
 different approaches and switch between them without having to wait for it to
 recaltulate.
 
-### Pre-processing
+### 1. Pre-processing
 
-a. Select whether to aggregate the texts on:
+1. Select whether to aggregate the texts on:
     - Paragraph
     - Title
     - Author
-b. Select wether to use the raw paragraphs or the lemmatized paragraphs
-c. Select a minimum token length (default 1), discard everything shorter
-b. Update the stopwords list.
+2. Select wether to use the raw paragraphs or the lemmatized paragraphs
+3. Select a minimum token length (default 1), discard everything shorter
+4. Update the stopwords list.
     - The default stopwords list has been retreived from [aurelberra/stopwords](https://github.com/aurelberra/stopwords/blob/master/stopwords_latin.txt)
     - The stopwords can be updated and changed, duplicates are automatically removed.
 
@@ -62,10 +62,10 @@ created corpora versions are saved to disk for later loading.
 ### Model fitting
 
 Four parameters are available for adjustment:
-a. Select the number of topics
-b. The maximum number of iterations to consider
-c. Whether to introduce the author as a parameter
-d. Whether to introduce the work(by title) as a parameter
+1. Select the number of topics
+2. The maximum number of iterations to consider
+3. Whether to introduce the author as a parameter
+4. Whether to introduce the work(by title) as a parameter
 
 Pressing the "Fit stm" button will initialize the calculation, which can take
 several minutes to complete.
@@ -77,22 +77,31 @@ explored through a small set of simple plots. First, select which topics you wan
 
 
 There is currently support five types of graphs:
-a. "default"
-    This plot show each topic's nr, top 3 associated words and show their
+1. "default"
+    - This plot show each topic's nr, top 3 associated words and show their
     expected proportion in the corpus.
 
-b. "hist"
-    Shows a histogram of the MAP estimates of the document-topic, where the
+2. "hist"
+    - Shows a histogram of the MAP estimates of the document-topic, where the
     dashed red line denotes the median.
 
-c. "perspectives"
-    A comparison of two topics (the lowest two if more than two are selected)
+3. "perspectives"
+    - A comparison of two topics (the lowest two if more than two are selected)
     , where words associated with either topics are positioned across the
     x-axis accordng to which topic they have the strongest association.
     The size of the word is an indication of its frequency.
 
-d. "labels"
-    Shows the selected topics and their top associated words.
+4. "labels"
+    - Shows the selected topics and their top associated words.
 
-d. "topicCorr"
-    Shows a graph of the correlation between topics.
+5. "topicCorr"
+    - Shows a graph of the correlation between topics.
+
+## A general note
+
+All buttons turn yellow(ish) for the duration of the calculation, after which
+the pressed button turns green as a visual reminder of what has been run last.
+If the buttons turns red, something has gone very wrong.
+
+Within each folder a *setting.txt* file is created that contains all the
+settings used to generate the related files (corpus, model, plots).
