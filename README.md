@@ -6,7 +6,7 @@ Structural Topic Model library [_stm_](https://cran.r-project.org/web/packages/s
 
 It has been constructed with a very corpus in mind, an excerpt from the
 [_Monastica_](https://monastca.ht.lu.se) database.
-However, the interface could be readapted for other copora with little effort.
+However, the interface could be readapted for other corpora with little effort.
 
 This repository was written with the intention of making Structural Topic
 Modelling more accessible to the researchers of the
@@ -41,7 +41,7 @@ executes that part's function with the settings. All results, or close
 thereto, are stored on disk and reloaded when the same settings are used again.
 The idea behind this is to allow for simple exploration of the data, try
 different approaches and switch between them without having to wait for it to
-recaltulate.
+recalculate.
 
 ### 1. Pre-processing
 
@@ -49,10 +49,10 @@ recaltulate.
     - Paragraph
     - Title
     - Author
-2. Select wether to use the raw paragraphs or the lemmatized paragraphs
+2. Select whether to use the raw paragraphs or the lemmatized paragraphs
 3. Select a minimum token length (default 1), discard everything shorter
 4. Update the stopwords list.
-    - The default stopwords list has been retreived from [aurelberra/stopwords](https://github.com/aurelberra/stopwords/blob/master/stopwords_latin.txt)
+    - The default stopwords list has been retrieved from [aurelberra/stopwords](https://github.com/aurelberra/stopwords/blob/master/stopwords_latin.txt)
     - The stopwords can be updated and changed, duplicates are automatically removed.
 
 Pressing the "save setting" button will load a corpus fitting the selected
@@ -78,7 +78,7 @@ explored through a small set of simple plots. First, select which topics you wan
 
 There is currently support five types of graphs:
 1. "default"
-    - This plot show each topic's nr, top 3 associated words and show their
+    - This plot show each topic's number, top 3 associated words and show their
     expected proportion in the corpus.
 
 2. "hist"
@@ -88,7 +88,7 @@ There is currently support five types of graphs:
 3. "perspectives"
     - A comparison of two topics (the lowest two if more than two are selected)
     , where words associated with either topics are positioned across the
-    x-axis accordng to which topic they have the strongest association.
+    x-axis according to which topic they have the strongest association.
     The size of the word is an indication of its frequency.
 
 4. "labels"
