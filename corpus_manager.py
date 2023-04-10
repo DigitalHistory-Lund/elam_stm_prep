@@ -407,8 +407,8 @@ class STM(Settings):
                     K={self.widgets['k'].value},
                     max.em.its = {self.widgets['i'].value},
                     data = meta,
-                    init.type = "LDA",
-                    gamma.priod = "L1"
+                    init.type = "Spectral",
+                    gamma.prior = "L1"
                     {prevalence}
                     )
                     """
@@ -476,7 +476,7 @@ class Plotter(Settings):
         else:
             self.basic_plot(plot_type)
 
-    def selected_topics_as_str(plot_type, self):
+    def selected_topics_as_str(self, plot_type):
         first = 2 if plot_type == "perspectives" else self.stm._settings[0][1]
         return ", ".join(
             [
@@ -523,7 +523,7 @@ class Plotter(Settings):
         self.widgets["display"].value = open(plot_path, "rb").read()
 
     def plain_plot(self):
-        topics = self.selected_topics_as_str(plot_type)
+        topics = self.selected_topics_as_str("default")
 
         plot_path = os.path.join(self.data_dir, "default.jpg")
         if not os.path.exists(plot_path):
