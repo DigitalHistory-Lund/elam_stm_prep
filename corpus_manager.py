@@ -290,8 +290,6 @@ class Corpus(Settings):
                     writer.writerow(line)
 
     def construct_query(self):
-        # todo: construct query from settings
-
         text_col = "par_lem" if self._settings[1][1] else "par_raw"
 
         query = f'select group_concat({text_col}, " ") as document, '
@@ -375,7 +373,7 @@ class STM(Settings):
             self.plotter.widgets["topic_list"].items = self.plotter.widgets["topics"]
             self.plotter.gui[:, -1] = VBox(self.plotter.widgets["topics"])
 
-    def build_prevanence_formula(self):
+    def build_prevalence_formula(self):
         variables = []
         if self.widgets["auth"]:
             variables += [col for val, col in self.corpus.authors]
@@ -399,7 +397,7 @@ class STM(Settings):
                 r(f'load("{self.stm_path}")')
 
             else:
-                prevalence = self.build_prevanence_formula()
+                prevalence = self.build_prevalence_formula()
 
                 r(
                     f"""
@@ -409,7 +407,8 @@ class STM(Settings):
                     K={self.widgets['k'].value},
                     max.em.its = {self.widgets['i'].value},
                     data = meta,
-                    init.type = "Spectral"
+                    init.type = "LDA",
+                    gamma.priod = "L1"
                     {prevalence}
                     )
                     """
@@ -444,8 +443,7 @@ class Plotter(Settings):
                 icon="ellipsis",
             ),
             "topic_list": VBox(),
-            "topics": [Checkbox()]
-            # todo: add optional arguments
+            "topics": [Checkbox()],
         }
         self.gui = GridspecLayout(5, 5)
         self.gui[0, 0] = self.widgets["type"]
@@ -478,7 +476,8 @@ class Plotter(Settings):
         else:
             self.basic_plot(plot_type)
 
-    def selected_topics_as_str(self):
+    def selected_topics_as_str(plot_type, self):
+        first = 2 if plot_type == "perspectives" else self.stm._settings[0][1]
         return ", ".join(
             [
                 cbox.description.split(" ")[-1]
@@ -494,9 +493,7 @@ class Plotter(Settings):
             print("missing stm model")
             return None
 
-        first = 2 if plot_type == "perspectives" else self.stm._settings[0][1]
-
-        topics = self.selected_topics_as_str()
+        topics = self.selected_topics_as_str(plot_type)
         plot_path = os.path.join(
             self.data_dir,
             (str(self) + str(plot_type) + str(topics) + ".jpeg").replace(" ", "_"),
@@ -526,7 +523,7 @@ class Plotter(Settings):
         self.widgets["display"].value = open(plot_path, "rb").read()
 
     def plain_plot(self):
-        topics = self.selected_topics_as_str()
+        topics = self.selected_topics_as_str(plot_type)
 
         plot_path = os.path.join(self.data_dir, "default.jpg")
         if not os.path.exists(plot_path):
