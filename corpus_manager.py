@@ -303,7 +303,7 @@ class Corpus(Settings):
 
     @staticmethod
     def cleaner(text, sw):
-        text = word_pattern.findall(text)
+        text = word_pattern.findall(text.lower())
         if sw is not None:
             text = [_ for _ in text if _ not in sw and "[" not in _]
         return " ".join(text)
