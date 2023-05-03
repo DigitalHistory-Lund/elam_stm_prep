@@ -164,7 +164,11 @@ class Corpus(Settings):
                 value="Work",
             ),
             "lem": Checkbox(value=True, description="Lemmatize"),
-            "chars": IntText(value=1, description="Minimum token length"),
+            "chars": IntText(
+                value=1,
+                description="Minimum token length",
+                tooltip="Minimum token length",
+            ),
             "btn": Button(
                 description="Save settings",
                 icon="ellipsis",
@@ -487,7 +491,7 @@ class Plotter(Settings):
     def update_settings(self):
         self._root_dir = self.stm.data_dir
         super().update_settings()
-        self.widgets["label"].value = str(self.data_dir)
+        self.widgets["label"].value = f"Image dir: {self.data_dir}"
 
     def button_func(self):
         @self.button_wrapper
