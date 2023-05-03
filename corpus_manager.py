@@ -351,9 +351,9 @@ class STM(Settings):
                 description="Maximum number of iterations",
                 tooltip="Maximum number of iterations",
             ),
-            "auth": Checkbox(value=True, description="By author"),
+            "auth": Checkbox(value=False, description="By author"),
             "work": Checkbox(value=True, description="By work"),
-            "letters": Checkbox(value=True, description="Letters"),
+            "letters": Checkbox(value=False, description="Letters"),
             "btn": Button(
                 description="Fit stm",
                 icon="ellipsis",
@@ -527,7 +527,9 @@ class Plotter(Settings):
             r(
                 f"""
                 jpeg(file="{plot_path}")
-                plot(stm_fit, type="{plot_type}", topics = c({topics}))
+                plot(stm_fit, type="{plot_type}", topics = c({topics}),
+                text.cex = 0.75,
+                )
                 dev.off()
                 """
             )
