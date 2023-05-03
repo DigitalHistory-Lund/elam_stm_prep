@@ -44,6 +44,10 @@ class Settings:
 
         if group == "Paragraph":
             return "par_id"
+        elif "letter" in group:
+            return "title"
+        elif group == "Work":
+            return "source"
         else:
             return group.lower()
 
@@ -147,13 +151,16 @@ class Corpus(Settings):
 
         # todo: add download for stopwords.
         with open("stopwords_latin.txt", "r", encoding="utf8") as f:
-            self.sw = set(row for row in f if not row.startswith("#") and row != "")
+            self.sw_base = set(
+                row.strip() for row in f if not row.startswith("#") and row != ""
+            ) | {"unk", "num"}
+            self.sw = self.sw_base
 
         self.widgets = {
             "grp": RadioButtons(
-                options=["Paragraph", "Title", "Author"],
+                options=["Paragraph", "Work", "Author", "Work w/ letters separated"],
                 description="Grouping",
-                value="Author",
+                value="Work",
             ),
             "lem": Checkbox(value=True, description="Lemmatize"),
             "chars": IntText(value=1, description="Minimum token length"),
@@ -165,11 +172,13 @@ class Corpus(Settings):
                 value=False,
             ),
             "sw": Textarea(value="\n".join(self.sw), description="StopWords", rows=20),
+            "user_sw": Textarea(value="", description="UserStopwords", rows=20),
         }
         self.widgets["btn"].on_click(self.button_func())
 
         self.gui = GridspecLayout(4, 4)
         self.gui[:, 1] = self.widgets["sw"]
+        self.gui[:, 2] = self.widgets["user_sw"]
         self.gui[0, 0] = self.widgets["grp"]
         self.gui[1, 0] = self.widgets["lem"]
         self.gui[2, 0] = self.widgets["chars"]
@@ -205,9 +214,9 @@ class Corpus(Settings):
                 if author[0] is not None
             ]
             self.works = [
-                (work[0], "wrk_" + work[0].replace(" ", "_"))
+                (work[0].replace(" ", "_"), "wrk_" + work[0].replace(" ", "_"))
                 for work in db.execute(
-                    "select distinct title from corpus_raw"
+                    "select distinct source from corpus_raw"
                 ).fetchall()
                 if work[0] is not None
             ]
@@ -259,7 +268,16 @@ class Corpus(Settings):
             r(f'load("{r_data_path}")')
 
     def _load_settings(self):
-        self.sw = set(_ for _ in self.widgets["sw"].value.split("\n"))
+        add = []
+        remove = []
+        for sw in self.widgets["user_sw"].value.split("\n"):
+            sw = sw.strip()
+            if sw.startswith("-"):
+                remove.append(sw[1:])
+            else:
+                add.append(sw)
+
+        self.sw = (self.sw_base | set(add)) - set(remove)
         self.widgets["sw"].value = "\n".join(sorted(self.sw))
 
         super()._load_settings()
@@ -293,11 +311,12 @@ class Corpus(Settings):
         text_col = "par_lem" if self._settings[1][1] else "par_raw"
 
         query = f'select group_concat({text_col}, " ") as document, '
-        for col, pairings in [("author", self.authors), ("title", self.works)]:
+        for col, pairings in [("author", self.authors), ("source", self.works)]:
             for value, header in pairings:
+                header = header.replace("-", "_")
                 query += f'CASE WHEN {col} == "{value}" THEN 1 ELSE 0 END AS {header}, '
 
-        query += "row from corpus_raw group by " + self.get_group_field()
+        query += "letter, row from corpus_raw group by " + self.get_group_field()
 
         return query
 
@@ -334,6 +353,7 @@ class STM(Settings):
             ),
             "auth": Checkbox(value=True, description="By author"),
             "work": Checkbox(value=True, description="By work"),
+            "letters": Checkbox(value=True, description="Letters"),
             "btn": Button(
                 description="Fit stm",
                 icon="ellipsis",
@@ -349,7 +369,8 @@ class STM(Settings):
         self.gui[1, 0] = self.widgets["i"]
         self.gui[0, 1] = self.widgets["auth"]
         self.gui[1, 1] = self.widgets["work"]
-        self.gui[2, :] = self.widgets["btn"]
+        self.gui[2, 1] = self.widgets["letters"]
+        self.gui[2, 0] = self.widgets["btn"]
 
         self.update_settings()
         self.plotter = Plotter(self)
@@ -375,11 +396,14 @@ class STM(Settings):
 
     def build_prevalence_formula(self):
         variables = []
-        if self.widgets["auth"]:
+        if self.widgets["auth"].value:
             variables += [col for val, col in self.corpus.authors]
 
-        if self.widgets["work"]:
+        if self.widgets["work"].value:
             variables += [col for val, col in self.corpus.works]
+
+        if self.widgets["letters"].value:
+            variables += ["letter"]
 
         if len(variables) > 0:
             return ", prevalence =~ " + "+".join(variables)
@@ -535,3 +559,12 @@ class Plotter(Settings):
         """
             )
         self.widgets["display"].value = open(plot_path, "rb").read()
+
+
+if __name__ == "__main__":
+    corpus = Corpus(root_data_path="data", database_name="corpus.sqlite3")
+    stm = corpus.stm
+
+    stm.widgets["btn"].click()
+
+    plotter = stm.plotter
