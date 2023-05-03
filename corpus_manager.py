@@ -15,6 +15,7 @@ import logging
 from rpy2.robjects import r
 from rpy2.rinterface import embedded
 import hashlib
+from zipfile import ZipFile
 
 # from lamonpy import Lamon
 # lamon = Lamon()
