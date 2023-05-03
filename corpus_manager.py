@@ -566,6 +566,26 @@ class Plotter(Settings):
             )
         self.widgets["display"].value = open(plot_path, "rb").read()
 
+    def zipper(self):
+        zip_hash = hex(hash(sum((hash(self.stm), hash(self.stm.corpus)))))
+        zip_name = f"elam_{zip_hash}.zip"
+        zip_path = os.path.join(zip_name)
+
+        dirs = [
+            os.path.join(self.stm.data_dir, d) for d in os.listdir(self.stm.data_dir)
+        ]
+        dirs = [d for d in dirs if os.path.isdir(d)]
+        dirs = [self.stm.corpus.data_dir, self.stm.data_dir] + dirs
+
+        with ZipFile(zip_path, "w") as zip_file:
+            for data_dir in dirs:
+                for f in os.listdir(data_dir):
+                    fpath = os.path.join(data_dir, f)
+                    if os.path.isdir(fpath):
+                        continue
+                    zip_file.write(fpath)
+        return zip_path
+
 
 if __name__ == "__main__":
     corpus = Corpus(root_data_path="data", database_name="corpus.sqlite3")
