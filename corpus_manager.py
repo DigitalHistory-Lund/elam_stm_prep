@@ -8,6 +8,7 @@ from ipywidgets import IntText
 from ipywidgets import GridspecLayout
 from ipywidgets import Image
 from ipywidgets import VBox
+from ipywidgets import Label
 import csv
 import re
 import logging
@@ -468,12 +469,14 @@ class Plotter(Settings):
             ),
             "topic_list": VBox(),
             "topics": [Checkbox()],
+            "label": Label(value=self._root_dir),
         }
-        self.gui = GridspecLayout(5, 5)
+        self.gui = GridspecLayout(6, 5)
+        self.gui[-1, 0:-1] = self.widgets["label"]
         self.gui[0, 0] = self.widgets["type"]
         self.gui[0, -2] = self.widgets["btn"]
-        self.gui[:, -1] = self.widgets["topic_list"]
-        self.gui[1:, 1:-1] = self.widgets["display"]
+        self.gui[1:, -1] = self.widgets["topic_list"]
+        self.gui[2:-1, 0:-1] = self.widgets["display"]
 
         self.widgets["btn"].on_click(self.button_func())
 
@@ -484,6 +487,7 @@ class Plotter(Settings):
     def update_settings(self):
         self._root_dir = self.stm.data_dir
         super().update_settings()
+        self.widgets["label"].value = str(self.data_dir)
 
     def button_func(self):
         @self.button_wrapper
